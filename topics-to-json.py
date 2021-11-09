@@ -23,12 +23,12 @@ class GenericMessageSubscriber(object):
         ros_pkg = connection_header[0] + '.msg'
         msg_type = connection_header[1]
         msg_class = getattr(import_module(ros_pkg), msg_type)
-        #try:
+        try:
             # some msg types don't have the _buff attribute attached!
-        msg = msg_class().deserialize(data._buff)
-        self._callback(msg, self._topic_name)
-        #except:
-        #    print("ERROR: Could not publish for topic: " + self._topic_name)
+            msg = msg_class().deserialize(data._buff)
+            self._callback(msg, self._topic_name)
+        except:
+            print("ERROR: Could not deserialize for topic: " + self._topic_name)
 
 def msg2json(msg, topic):
     yaml_msg = yaml.load(str(msg), Loader=yaml.FullLoader)
@@ -56,12 +56,7 @@ def main():
     global api_token
     api_token = str(os.getenv('GF_TOKEN'))
     rospy.init_node('ros2json')
-    GenericMessageSubscriber("/imu", msg2json)
-    GenericMessageSubscriber("/odom", msg2json)
-    GenericMessageSubscriber("/cmd_vel", msg2json)
-    GenericMessageSubscriber("/joint_states", msg2json)
-    GenericMessageSubscriber("/tf", msg2json)
-    rospy.spin()    
+    publishAllTopics()    
 
 if __name__ == '__main__':
     main()
