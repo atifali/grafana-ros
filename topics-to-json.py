@@ -25,10 +25,14 @@ class GenericMessageSubscriber(object):
         msg_class = getattr(import_module(ros_pkg), msg_type)
         try:
             # some msg types don't have the _buff attribute attached!
-            msg = msg_class().deserialize(data._buff)
-            self._callback(msg, self._topic_name)
+            if hasattr(data, '_buff'):
+                msg = msg_class().deserialize(data._buff)
+            # try using the object itself...
+            else:
+                msg = data
         except:
-            print("ERROR: Could not deserialize for topic: " + self._topic_name)
+            print("ERROR: Could not deserialize message for topic: " + self._topic_name)
+        self._callback(msg, self._topic_name)
 
 def msg2json(msg, topic):
     yaml_msg = yaml.load(str(msg), Loader=yaml.FullLoader)
@@ -56,7 +60,7 @@ def main():
     global api_token
     api_token = str(os.getenv('GF_TOKEN'))
     rospy.init_node('ros2json')
-    publishAllTopics()    
+    publishAllTopics()
 
 if __name__ == '__main__':
     main()
