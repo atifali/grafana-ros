@@ -21,8 +21,8 @@ class GenericMessageSubscriber(object):
         self._use_ws = use_ws
         if self._use_ws:
             self._url = self._url.replace("http", "ws")
-            self._ws = websocket.WebSocket()
-            self._ws.connect(self._url, header=self._headers)
+            self._ws = websocket.WebSocketApp(self._url, header=self._headers)
+            self._ws.run_forever()
         else:
             self._ws = None
 
