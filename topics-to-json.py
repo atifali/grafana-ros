@@ -37,7 +37,7 @@ class GenericMessageSubscriber(object):
 def msg2json(msg, topic):
     yaml_msg = yaml.load(str(msg), Loader=yaml.FullLoader)
     json_msg = json.dumps(yaml_msg,indent=4)
-    url = "http://localhost:3000/api/live/push/ros" + topic
+    url = "http://localhost:3000/api/live/pipeline/push/stream/ros" + topic
     headers = {'Authorization': 'Bearer ' + api_token}
     response = requests.post(url=url, json=json.loads(json_msg), headers=headers, allow_redirects=False)
     if response.status_code != 200:
