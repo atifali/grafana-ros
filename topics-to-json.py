@@ -7,15 +7,24 @@ import yaml
 import json
 import requests
 from threading import Thread
+import websocket
 
 api_token = ""
-
 class GenericMessageSubscriber(object):
-    def __init__(self, topic_name, callback):
+    def __init__(self, topic_name, callback, use_ws):
         self._binary_sub = rospy.Subscriber(
             topic_name, rospy.AnyMsg, self.generic_message_callback)
         self._callback = callback
         self._topic_name = topic_name
+        self._url = "http://localhost:3000/api/live/pipeline/push/stream/ros" + self._topic_name
+        self._headers = {'Authorization': 'Bearer ' + api_token}
+        self._use_ws = use_ws
+        if self._use_ws:
+            self._url = self._url.replace("http", "ws")
+            self._ws = websocket.WebSocket()
+            self._ws.connect(self._url, header=self._headers)
+        else:
+            self._ws = None
 
     def generic_message_callback(self, data):
         assert sys.version_info >= (2,7) #import_module's syntax needs 2.7
@@ -32,24 +41,28 @@ class GenericMessageSubscriber(object):
                 msg = data
         except:
             print("ERROR: Could not deserialize message for topic: " + self._topic_name)
-        self._callback(msg, self._topic_name)
+        self._callback(msg, self._url, self._headers, self._ws, self._use_ws, self._topic_name)
 
-def msg2json(msg, topic):
+def msg2json(msg, url, headers, ws, use_ws, topic):
     yaml_msg = yaml.load(str(msg), Loader=yaml.FullLoader)
     json_msg = json.dumps(yaml_msg,indent=4)
-    url = "http://localhost:3000/api/live/pipeline/push/stream/ros" + topic
-    headers = {'Authorization': 'Bearer ' + api_token}
-    response = requests.post(url=url, json=json.loads(json_msg), headers=headers, allow_redirects=False)
-    if response.status_code != 200:
-        print("ERROR! TOPIC: " + topic + "; CODE: " + str(response.status_code))
+    if use_ws:
+        try:
+            ws.send(json_msg)
+        except:
+            print("ERROR! TOPIC: " + topic + "; WS SEND FAILED!")
+    else:
+        response = requests.post(url=url, json=json.loads(json_msg), headers=headers, allow_redirects=False)
+        if response.status_code != 200:
+            print("ERROR! TOPIC: " + topic + "; CODE: " + str(response.status_code))
 
-def publishAllTopics():
+def publishAllTopics(use_ws):
     topics = rospy.get_published_topics("/")
     threads = []
     print("found the following topics...")
     for topic in topics:
         print(topic)
-        thread = Thread(target = GenericMessageSubscriber, args= (topic[0], msg2json))
+        thread = Thread(target = GenericMessageSubscriber, args= (topic[0], msg2json, use_ws))
         threads.append(thread)
         thread.start()        
     rospy.spin()
@@ -60,7 +73,7 @@ def main():
     global api_token
     api_token = str(os.getenv('GF_TOKEN'))
     rospy.init_node('ros2json')
-    publishAllTopics()
+    publishAllTopics(True)
 
 if __name__ == '__main__':
     main()
