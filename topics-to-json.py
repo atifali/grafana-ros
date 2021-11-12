@@ -8,21 +8,31 @@ import json
 import requests
 from threading import Thread
 import websocket
+from rosthrottle import MessageThrottle
 
-api_token = ""
+API_TOKEN = ""
+THROTTLING_RATE = 1.0
+
 class GenericMessageSubscriber(object):
-    def __init__(self, topic_name, callback, use_ws):
-        self._binary_sub = rospy.Subscriber(
-            topic_name, rospy.AnyMsg, self.generic_message_callback)
-        self._callback = callback
+    def __init__(self, topic_name, callback, use_ws, use_throttling):
         self._topic_name = topic_name
         self._url = "http://localhost:3000/api/live/pipeline/push/stream/ros" + self._topic_name
-        self._headers = {'Authorization': 'Bearer ' + api_token}
+        self._headers = {'Authorization': 'Bearer ' + API_TOKEN}
+        self._use_throttling = use_throttling
+        if self._use_throttling:
+            self._throttler = MessageThrottle(self._topic_name, self._topic_name + "_t", THROTTLING_RATE)
+            self._topic_name = self._topic_name + "_t"
+            self._throttler.start()
+        else:
+            self._throttler = None
+        self._binary_sub = rospy.Subscriber(
+            self._topic_name, rospy.AnyMsg, self.generic_message_callback)
+        self._callback = callback
         self._use_ws = use_ws
         if self._use_ws:
             self._url = self._url.replace("http", "ws")
             self._ws = websocket.WebSocketApp(self._url, header=self._headers)
-            self._ws.run_forever()
+            self._ws.run_forever(skip_utf8_validation=True)
         else:
             self._ws = None
 
@@ -39,8 +49,9 @@ class GenericMessageSubscriber(object):
             # try using the object itself...
             else:
                 msg = data
-        except:
+        except Exception as e:
             print("ERROR: Could not deserialize message for topic: " + self._topic_name)
+            print(e)
         self._callback(msg, self._url, self._headers, self._ws, self._use_ws, self._topic_name)
 
 def msg2json(msg, url, headers, ws, use_ws, topic):
@@ -49,20 +60,21 @@ def msg2json(msg, url, headers, ws, use_ws, topic):
     if use_ws:
         try:
             ws.send(json_msg)
-        except:
+        except Exception as e:
             print("ERROR! TOPIC: " + topic + "; WS SEND FAILED!")
+            print(e)
     else:
         response = requests.post(url=url, json=json.loads(json_msg), headers=headers, allow_redirects=False)
         if response.status_code != 200:
             print("ERROR! TOPIC: " + topic + "; CODE: " + str(response.status_code))
 
-def publishAllTopics(use_ws):
+def publishAllTopics(use_ws, use_throttling):
     topics = rospy.get_published_topics("/")
     threads = []
     print("found the following topics...")
     for topic in topics:
         print(topic)
-        thread = Thread(target = GenericMessageSubscriber, args= (topic[0], msg2json, use_ws))
+        thread = Thread(target = GenericMessageSubscriber, args= (topic[0], msg2json, use_ws, use_throttling))
         threads.append(thread)
         thread.start()        
     rospy.spin()
@@ -70,10 +82,10 @@ def publishAllTopics(use_ws):
         t.join()
 
 def main():
-    global api_token
-    api_token = str(os.getenv('GF_TOKEN'))
+    global API_TOKEN
+    API_TOKEN = str(os.getenv('GF_TOKEN'))
     rospy.init_node('ros2json')
-    publishAllTopics(True)
+    publishAllTopics(True, True)
 
 if __name__ == '__main__':
     main()
