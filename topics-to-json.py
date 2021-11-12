@@ -73,6 +73,8 @@ def publishAllTopics(use_ws, use_throttling):
     threads = []
     print("found the following topics...")
     for topic in topics:
+        if topic[0].endswith('_t'):
+            continue
         print(topic)
         thread = Thread(target = GenericMessageSubscriber, args= (topic[0], msg2json, use_ws, use_throttling))
         threads.append(thread)
@@ -80,6 +82,7 @@ def publishAllTopics(use_ws, use_throttling):
     rospy.spin()
     for t in threads:
         t.join()
+    rospy.signal_shutdown("program exiting")
 
 def main():
     global API_TOKEN
