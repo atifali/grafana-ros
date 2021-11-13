@@ -11,7 +11,7 @@ import websocket
 from rosthrottle import MessageThrottle
 
 API_TOKEN = ""
-THROTTLING_RATE = 10.0
+THROTTLING_RATE = 20.0
 
 class GenericMessageSubscriber(object):
     def __init__(self, topic_name, callback, use_ws, use_throttling):
@@ -35,6 +35,7 @@ class GenericMessageSubscriber(object):
             self._ws.run_forever(skip_utf8_validation=True)
         else:
             self._ws = None
+        return
 
     def generic_message_callback(self, data):
         assert sys.version_info >= (2,7) #import_module's syntax needs 2.7
@@ -53,6 +54,7 @@ class GenericMessageSubscriber(object):
             print("ERROR: Could not deserialize message for topic: " + self._topic_name)
             print(e)
         self._callback(msg, self._url, self._headers, self._ws, self._use_ws, self._topic_name)
+        return
 
 def msg2json(msg, url, headers, ws, use_ws, topic):
     yaml_msg = yaml.load(str(msg), Loader=yaml.FullLoader)
@@ -67,14 +69,17 @@ def msg2json(msg, url, headers, ws, use_ws, topic):
         response = requests.post(url=url, json=json.loads(json_msg), headers=headers, allow_redirects=False)
         if response.status_code != 200:
             print("ERROR! TOPIC: " + topic + "; CODE: " + str(response.status_code))
+    return
 
 def publishTopic(topic, use_ws, use_throttling):
     rospy.set_param('enable_statistics', True)
     rospy.set_param('statistics_window_min_elements', 10)
+    rospy.set_param('statistics_window_max_elements', 100)
     rospy.init_node('ros2json' + topic.replace('/', '000').replace('_', '000'))
     GenericMessageSubscriber(topic, msg2json, use_ws, use_throttling)
     rospy.spin()
     rospy.signal_shutdown("program exiting")
+    return
 
 def publishAllTopics(use_ws, use_throttling):
     topics = rospy.get_published_topics("/")
@@ -89,11 +94,13 @@ def publishAllTopics(use_ws, use_throttling):
         process.start()
     for p in processes:
         p.join()
+    return
 
 def main():
     global API_TOKEN
     API_TOKEN = str(os.getenv('GF_TOKEN'))
     publishAllTopics(True, True)
+    return
 
 if __name__ == '__main__':
     main()
