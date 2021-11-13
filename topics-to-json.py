@@ -6,12 +6,12 @@ from importlib import import_module
 import yaml
 import json
 import requests
-from threading import Thread
+from multiprocessing import Process
 import websocket
 from rosthrottle import MessageThrottle
 
 API_TOKEN = ""
-THROTTLING_RATE = 1.0
+THROTTLING_RATE = 10.0
 
 class GenericMessageSubscriber(object):
     def __init__(self, topic_name, callback, use_ws, use_throttling):
@@ -68,26 +68,31 @@ def msg2json(msg, url, headers, ws, use_ws, topic):
         if response.status_code != 200:
             print("ERROR! TOPIC: " + topic + "; CODE: " + str(response.status_code))
 
+def publishTopic(topic, use_ws, use_throttling):
+    rospy.set_param('enable_statistics', True)
+    rospy.set_param('statistics_window_min_elements', 10)
+    rospy.init_node('ros2json' + topic.replace('/', '000').replace('_', '000'))
+    GenericMessageSubscriber(topic, msg2json, use_ws, use_throttling)
+    rospy.spin()
+    rospy.signal_shutdown("program exiting")
+
 def publishAllTopics(use_ws, use_throttling):
     topics = rospy.get_published_topics("/")
-    threads = []
+    processes = []
     print("found the following topics...")
     for topic in topics:
         if topic[0].endswith('_t'):
             continue
         print(topic)
-        thread = Thread(target = GenericMessageSubscriber, args= (topic[0], msg2json, use_ws, use_throttling))
-        threads.append(thread)
-        thread.start()        
-    rospy.spin()
-    for t in threads:
-        t.join()
-    rospy.signal_shutdown("program exiting")
+        process = Process(target = publishTopic, args= (topic[0], use_ws, use_throttling, ))
+        processes.append(process)
+        process.start()
+    for p in processes:
+        p.join()
 
 def main():
     global API_TOKEN
     API_TOKEN = str(os.getenv('GF_TOKEN'))
-    rospy.init_node('ros2json')
     publishAllTopics(True, True)
 
 if __name__ == '__main__':
