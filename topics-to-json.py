@@ -97,10 +97,17 @@ def publishAllTopics(use_ws, use_throttling):
     return
 
 def main():
-    global API_TOKEN
+    global API_TOKEN, THROTTLING_RATE
     API_TOKEN = str(os.getenv('GF_TOKEN'))
-    publishAllTopics(True, True)
+    if len(sys.argv) > 1:
+        THROTTLING_RATE = sys.argv[2]
+        print("Publishing...")
+        print("Topic: " + sys.argv[1] + "; Rate: " + sys.argv[2])
+        publishTopic(sys.argv[1], True, True)    
+    else:
+        publishAllTopics(True, True)
     return
 
 if __name__ == '__main__':
+    print(sys.argv)
     main()
